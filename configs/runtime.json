@@ -1,0 +1,12 @@
+{
+  "sample_rate": 48000,
+  "block_size": 128,
+  "filter_taps": 256,
+  "brir_taps": 512,
+  "modeling_delay_samples": 128,
+  "speed_of_sound_m_s": 343.0,
+  "input_trim_db": -6.0,
+  "default_filter_boost_db": 6.0,
+  "hard_filter_boost_db": 12.0,
+  "smoothing_samples": 128
+}

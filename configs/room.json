@@ -1,0 +1,10 @@
+{
+  "width_m": 4.0,
+  "depth_m": 3.0,
+  "height_m": 2.5,
+  "rt60_s": 0.25,
+  "listener_x_m": 2.0,
+  "listener_y_m": 1.5,
+  "listener_z_m": 1.2,
+  "air_absorption": true
+}

@@ -1,0 +1,6 @@
+{
+  "speaker_spacing_m": 0.2,
+  "listener_distance_m": 0.5,
+  "head_radius_m": 0.0875,
+  "yaw_degrees": 0.0
+}

@@ -1,0 +1,12 @@
+[project]
+name = "ctc"
+version = "0.1.0"
+description = "ML-guided low-latency crosstalk cancellation reference implementation"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+ctc = "ctc.cli:main"
+
+[tool.setuptools]
+packages = ["ctc"]
