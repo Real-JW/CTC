@@ -8,8 +8,11 @@ from BRIR.brir_fft_fir import (
     compose_brir_filter_bank,
     compose_path_brir,
     design_demo_brir_filter_bank,
+    design_demo_stereo_hrtf_filter_bank,
     fft_convolve,
     render_wav_with_brir,
+    stereo_path_metadata,
+    stereo_path_report,
 )
 from ctc.wav import read_wav, write_wav_pcm16
 
@@ -65,6 +68,24 @@ class BrirFftFirTests(unittest.TestCase):
         peak = max(abs(tap) for row in brir for path in row for tap in path)
         self.assertLessEqual(peak, 0.99)
 
+    def test_demo_hrtf_has_explicit_stereo_crosstalk_paths(self):
+        hrtf = design_demo_stereo_hrtf_filter_bank(sample_rate=48_000)
+        report = stereo_path_report(hrtf, sample_rate=48_000)
+        roles = {entry["path"]: entry["role"] for entry in report}
+
+        self.assertEqual(roles["left_speaker_to_left_ear"], "desired")
+        self.assertEqual(roles["right_speaker_to_right_ear"], "desired")
+        self.assertEqual(roles["right_speaker_to_left_ear"], "crosstalk")
+        self.assertEqual(roles["left_speaker_to_right_ear"], "crosstalk")
+        self.assertGreater(sum(abs(tap) for tap in hrtf[0][1]), 0.0)
+        self.assertGreater(sum(abs(tap) for tap in hrtf[1][0]), 0.0)
+
+    def test_stereo_path_metadata_names_all_four_paths(self):
+        paths = stereo_path_metadata()
+        self.assertEqual(len(paths), 4)
+        self.assertEqual(sum(1 for path in paths if path["role"] == "desired"), 2)
+        self.assertEqual(sum(1 for path in paths if path["role"] == "crosstalk"), 2)
+
     def test_render_wav_with_brir_uses_input_output_paths(self):
         filters = [
             [[1.0, 0.25], [0.0, 0.0]],
@@ -82,6 +103,7 @@ class BrirFftFirTests(unittest.TestCase):
         self.assertEqual(sample_rate, 48_000)
         self.assertEqual(metrics["input_samples"], 2)
         self.assertEqual(metrics["output_samples"], 3)
+        self.assertEqual(len(metrics["paths"]), 4)
         self.assertEqual(len(rendered), 3)
 
 

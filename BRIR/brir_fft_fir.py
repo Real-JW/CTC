@@ -17,6 +17,7 @@ Filter = List[float]
 FilterBank = List[List[Filter]]
 StereoSample = Tuple[float, float]
 PathLike = Union[str, Path]
+STEREO_CHANNELS = ("left", "right")
 
 
 try:  # Optional open-source acceleration path.
@@ -123,6 +124,38 @@ def normalize_filter_bank(filters: FilterBank, peak: float = 0.99) -> FilterBank
     return [[[tap * scale for tap in path] for path in row] for row in filters]
 
 
+def stereo_path_metadata() -> List[Dict[str, Any]]:
+    """Describe the 2x2 loudspeaker-to-ear acoustic matrix."""
+    paths = []
+    for ear_index, ear in enumerate(STEREO_CHANNELS):
+        for speaker_index, speaker in enumerate(STEREO_CHANNELS):
+            role = "desired" if ear_index == speaker_index else "crosstalk"
+            paths.append(
+                {
+                    "ear_index": ear_index,
+                    "speaker_index": speaker_index,
+                    "ear": f"{ear}_ear",
+                    "speaker": f"{speaker}_speaker",
+                    "path": f"{speaker}_speaker_to_{ear}_ear",
+                    "role": role,
+                }
+            )
+    return paths
+
+
+def stereo_path_report(filters: Sequence[Sequence[Sequence[float]]], sample_rate: int) -> List[Dict[str, Any]]:
+    """Summarize desired and crosstalk paths in a stereo BRIR/HRTF bank."""
+    _validate_filter_bank(filters, "filters")
+    if len(filters) != 2 or len(filters[0]) != 2:
+        raise ValueError("stereo path reports require a 2x2 filter bank")
+    report = []
+    for metadata in stereo_path_metadata():
+        path = filters[metadata["ear_index"]][metadata["speaker_index"]]
+        stats = _filter_path_stats(path, sample_rate)
+        report.append({**metadata, **stats})
+    return report
+
+
 @dataclass(frozen=True)
 class TapAssessment:
     taps: int
@@ -210,6 +243,17 @@ def design_demo_brir_filter_bank(
     realistic delays, crosstalk, and early reflections while keeping the repo
     self-contained.
     """
+    hrtf = design_demo_stereo_hrtf_filter_bank(sample_rate=sample_rate)
+    rtf = design_demo_speaker_rtf_filter_bank(taps=max(taps // 2, 256), sample_rate=sample_rate, rt60_s=rt60_s)
+    return compose_brir_filter_bank(hrtf, rtf, taps=taps, normalize_peak=0.99)
+
+
+def design_demo_stereo_hrtf_filter_bank(sample_rate: int = 48_000) -> FilterBank:
+    """Build a simple 2x2 HRTF bank with explicit stereo crosstalk paths.
+
+    Shape is [ear][speaker][tap].  Diagonal paths are desired speaker-to-near-ear
+    paths; off-diagonal paths are the HRTF crosstalk paths.
+    """
     hrtf_taps = 96
     hrtf = _zero_filter_bank(outputs=2, inputs=2, taps=hrtf_taps)
     same_delay = int(round(0.18e-3 * sample_rate))
@@ -220,19 +264,25 @@ def design_demo_brir_filter_bank(
     hrtf[1][0][cross_delay] = 0.38
     _add_fractional_impulse(hrtf[0][1], cross_delay + 6.4, -0.08)
     _add_fractional_impulse(hrtf[1][0], cross_delay + 6.4, -0.08)
+    return hrtf
 
-    rtf_taps = max(taps // 2, 256)
+
+def design_demo_speaker_rtf_filter_bank(
+    taps: int = 512,
+    sample_rate: int = 48_000,
+    rt60_s: float = 0.20,
+) -> List[Filter]:
+    """Build per-speaker room transfer FIRs shared by both ears before HRTF."""
     rtf = []
     for speaker in range(2):
-        path = [0.0 for _ in range(rtf_taps)]
+        path = [0.0 for _ in range(taps)]
         path[0] = 1.0
         sign = 1.0 if speaker == 0 else -1.0
         for delay_ms, gain in ((4.8, 0.32), (9.7, -0.22), (16.5, 0.14)):
             _add_fractional_impulse(path, delay_ms * 1e-3 * sample_rate, gain * sign)
         _add_sparse_late_tail(path, sample_rate=sample_rate, rt60_s=rt60_s, start_ms=18.0)
         rtf.append(path)
-
-    return compose_brir_filter_bank(hrtf, rtf, taps=taps, normalize_peak=0.99)
+    return rtf
 
 
 def write_filter_bank_json(
@@ -289,6 +339,7 @@ def render_wav_with_brir(
         "block_size": block_size,
         "engine": renderer.engine,
         "peak_abs": peak_abs(rendered),
+        "paths": stereo_path_report(filters, sample_rate),
     }
 
 
@@ -434,6 +485,23 @@ def _add_sparse_late_tail(target: Filter, sample_rate: int, rt60_s: float, start
         target[index] += polarity * 0.045 * envelope
 
 
+def _filter_path_stats(path: Sequence[float], sample_rate: int) -> Dict[str, Any]:
+    values = _as_filter(path)
+    peak_sample = max(range(len(values)), key=lambda index: abs(values[index]))
+    peak = abs(values[peak_sample])
+    first_nonzero = next((index for index, value in enumerate(values) if abs(value) > 1e-12), None)
+    nonzero_taps = sum(1 for value in values if abs(value) > 1e-12)
+    energy = sum(value * value for value in values)
+    return {
+        "peak": peak,
+        "peak_sample": peak_sample,
+        "peak_delay_ms": peak_sample * 1000.0 / sample_rate,
+        "first_nonzero_sample": first_nonzero,
+        "nonzero_taps": nonzero_taps,
+        "energy": energy,
+    }
+
+
 def _validate_filter_bank(value: Sequence[Sequence[Sequence[float]]], name: str) -> None:
     if not _looks_like_filter_bank(value):
         raise ValueError(f"{name} must have shape [output][input][tap]")
@@ -526,6 +594,7 @@ def _main() -> int:
         metadata={
             "engine_hint": "install ctc[brir] to use NumPy/SciPy FFT acceleration",
             "tap_assessment": assessment.__dict__,
+            "paths": stereo_path_report(filters, sample_rate),
             **metadata,
         },
     )

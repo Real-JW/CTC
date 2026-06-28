@@ -6,8 +6,12 @@ from .brir_fft_fir import (
     compose_brir_filter_bank,
     compose_path_brir,
     design_demo_brir_filter_bank,
+    design_demo_speaker_rtf_filter_bank,
+    design_demo_stereo_hrtf_filter_bank,
     fft_convolve,
     render_wav_with_brir,
+    stereo_path_metadata,
+    stereo_path_report,
 )
 
 __all__ = [
@@ -16,6 +20,10 @@ __all__ = [
     "compose_brir_filter_bank",
     "compose_path_brir",
     "design_demo_brir_filter_bank",
+    "design_demo_speaker_rtf_filter_bank",
+    "design_demo_stereo_hrtf_filter_bank",
     "fft_convolve",
     "render_wav_with_brir",
+    "stereo_path_metadata",
+    "stereo_path_report",
 ]

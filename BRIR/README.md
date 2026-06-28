@@ -14,6 +14,19 @@ FFT(BRIR) = FFT(HRTF) * FFT(RTF)
 
 The code prefers open-source NumPy/SciPy FFT routines when installed, and keeps a dependency-free direct-FIR fallback so the rest of this repo can still run in a clean Python environment.
 
+## Stereo HRTF Crosstalk
+
+Stereo loudspeaker playback is a 2x2 acoustic matrix:
+
+```text
+BRIR[0][0] = left speaker  -> left ear   desired
+BRIR[0][1] = right speaker -> left ear   crosstalk
+BRIR[1][0] = left speaker  -> right ear  crosstalk
+BRIR[1][1] = right speaker -> right ear  desired
+```
+
+The off-diagonal paths are crosstalk, and they are HRTF-related because the opposite speaker reaches the opposite ear with its own head-shadow, delay, and filtering. The demo HRTF builder includes all four paths.
+
 ## Is 1024 Samples Good?
 
 At 48 kHz, 1024 samples is about 21.3 ms. That is a good low-latency choice for HRTF, direct sound, and early room reflections. It is not long enough to contain a full room decay such as RT60 = 250 ms, which would be about 12000 samples at 48 kHz.
