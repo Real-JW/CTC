@@ -7,6 +7,7 @@ This repo currently contains a dependency-free Python reference engine:
 - Stage 1 reads a stereo 48 kHz WAV and writes ML-guided crosstalk-cancelled loudspeaker feeds to `preprocessed.wav`.
 - Stage 2 simulates direct-path binaural playback and writes `simulated_binaural.wav`.
 - `ctc train` creates a loadable `ml_filter_model.json` from analytic CTC teacher labels.
+- `BRIR/` contains optional FFT + FIR helpers for composing BRIR filter banks from HRTF and RTF impulse responses.
 
 ## Install
 
