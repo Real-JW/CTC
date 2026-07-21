@@ -18,6 +18,7 @@ FilterBank = List[List[Filter]]
 StereoSample = Tuple[float, float]
 PathLike = Union[str, Path]
 STEREO_CHANNELS = ("left", "right")
+REFERENCE_BRIR_PATH = Path(__file__).resolve().parent / "data" / "mit_kemar_anechoic_30deg_48k.json"
 
 
 try:  # Optional open-source acceleration path.
@@ -248,6 +249,21 @@ def design_demo_brir_filter_bank(
     return compose_brir_filter_bank(hrtf, rtf, taps=taps, normalize_peak=0.99)
 
 
+def load_reference_brir_filter_bank(
+    taps: int = 1024,
+    sample_rate: int = 48_000,
+    path: PathLike = REFERENCE_BRIR_PATH,
+) -> Tuple[FilterBank, Dict[str, Any]]:
+    """Load the bundled measured MIT KEMAR anechoic stereo BRIR reference."""
+    stored_rate, filters, metadata = read_filter_bank_json(path)
+    if stored_rate != sample_rate:
+        raise ValueError(
+            f"reference BRIR is {stored_rate} Hz, got requested {sample_rate} Hz; "
+            "regenerate or resample the reference data first"
+        )
+    return _fit_filter_bank_length(filters, taps=taps, tail_window=0), dict(metadata)
+
+
 def design_demo_stereo_hrtf_filter_bank(sample_rate: int = 48_000) -> FilterBank:
     """Build a simple 2x2 HRTF bank with explicit stereo crosstalk paths.
 
@@ -316,7 +332,7 @@ def render_wav_with_brir(
     pcm16: bool = False,
 ) -> Dict[str, Any]:
     """Render a stereo WAV through a 2x2 BRIR filter bank."""
-    from ctc.wav import peak_abs, read_wav, write_wav_float32, write_wav_pcm16
+    from .wav import peak_abs, read_wav, write_wav_float32, write_wav_pcm16
 
     input_rate, samples = read_wav(input_path)
     if input_rate != sample_rate:
@@ -452,6 +468,19 @@ def _fit_fir_length(values: Sequence[float], taps: int, tail_window: int) -> Fil
     return fitted
 
 
+def _fit_filter_bank_length(
+    filters: Sequence[Sequence[Sequence[float]]],
+    taps: int,
+    tail_window: int,
+) -> FilterBank:
+    if taps <= 0:
+        raise ValueError("taps must be positive")
+    return [
+        [_fit_fir_length(path, taps=taps, tail_window=tail_window) for path in row]
+        for row in filters
+    ]
+
+
 def _next_fft_len(size: int) -> int:
     if _scipy_next_fast_len is not None:
         return int(_scipy_next_fast_len(size))
@@ -556,6 +585,7 @@ def _main() -> int:
     parser.add_argument("--input-wav", help="stereo input WAV to render, for example /Users/realjw/Project/CTC/input.wav")
     parser.add_argument("--output-wav", help="rendered stereo WAV output path")
     parser.add_argument("--filter-bank", help="optional BRIR JSON file to render with instead of the demo BRIR")
+    parser.add_argument("--synthetic-demo", action="store_true", help="use the old synthetic coefficients instead of the measured KEMAR reference")
     parser.add_argument("--block-size", type=int, default=1024)
     parser.add_argument("--pcm16", action="store_true")
     parser.add_argument("--taps", type=int, default=1024)
@@ -570,8 +600,14 @@ def _main() -> int:
     sample_rate = args.sample_rate
     if args.filter_bank:
         sample_rate, filters, metadata = read_filter_bank_json(args.filter_bank)
-    else:
+    elif args.synthetic_demo:
         filters = design_demo_brir_filter_bank(taps=args.taps, sample_rate=sample_rate, rt60_s=args.rt60)
+        metadata = {
+            "scenario": "synthetic demo HRTF plus synthetic early room reflections",
+            "source": "procedural placeholder coefficients",
+        }
+    else:
+        filters, metadata = load_reference_brir_filter_bank(taps=args.taps, sample_rate=sample_rate)
 
     assessment = assess_brir_taps(taps=len(filters[0][0]), sample_rate=sample_rate, rt60_s=args.rt60)
 

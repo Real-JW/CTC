@@ -1,0 +1,14 @@
+{
+  "sample_rate": 48000,
+  "filter_taps": 128,
+  "design_delay": 64,
+  "fft_size": 2048,
+  "low_hz": 150.0,
+  "high_hz": 12000.0,
+  "regularization": 0.02,
+  "low_regularization": 0.1,
+  "high_regularization": 0.08,
+  "max_filter_gain_db": 6.0,
+  "feature_bins": 24,
+  "residual_components": 8
+}

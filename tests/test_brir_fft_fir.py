@@ -9,12 +9,13 @@ from BRIR.brir_fft_fir import (
     compose_path_brir,
     design_demo_brir_filter_bank,
     design_demo_stereo_hrtf_filter_bank,
+    load_reference_brir_filter_bank,
     fft_convolve,
     render_wav_with_brir,
     stereo_path_metadata,
     stereo_path_report,
 )
-from ctc.wav import read_wav, write_wav_pcm16
+from BRIR.wav import read_wav, write_wav_pcm16
 
 
 class BrirFftFirTests(unittest.TestCase):
@@ -85,6 +86,17 @@ class BrirFftFirTests(unittest.TestCase):
         self.assertEqual(len(paths), 4)
         self.assertEqual(sum(1 for path in paths if path["role"] == "desired"), 2)
         self.assertEqual(sum(1 for path in paths if path["role"] == "crosstalk"), 2)
+
+    def test_reference_brir_uses_measured_kemar_coefficients(self):
+        brir, metadata = load_reference_brir_filter_bank(taps=1024, sample_rate=48_000)
+        report = stereo_path_report(brir, sample_rate=48_000)
+        desired_peaks = [entry["peak"] for entry in report if entry["role"] == "desired"]
+        crosstalk_peaks = [entry["peak"] for entry in report if entry["role"] == "crosstalk"]
+
+        self.assertEqual(metadata["source"], "MIT Media Lab KEMAR HRTF compact measurements")
+        self.assertEqual(len(brir[0][0]), 1024)
+        self.assertGreater(min(desired_peaks), max(crosstalk_peaks))
+        self.assertEqual(len(crosstalk_peaks), 2)
 
     def test_render_wav_with_brir_uses_input_output_paths(self):
         filters = [

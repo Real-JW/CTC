@@ -14,6 +14,15 @@ FFT(BRIR) = FFT(HRTF) * FFT(RTF)
 
 The code prefers open-source NumPy/SciPy FFT routines when installed, and keeps a dependency-free direct-FIR fallback so the rest of this repo can still run in a clean Python environment.
 
+By default, the FIR coefficients are measured MIT KEMAR compact HRTF coefficients for a simple anechoic stereo setup:
+
+- Loudspeakers at +/-30 degrees azimuth, 0 degrees elevation.
+- Right speaker uses `elev0/H0e030a.wav`.
+- Left speaker mirrors the same measurement by swapping ears.
+- RTF is identity/anechoic, so BRIR equals measured HRTF padded to 1024 taps.
+
+Reference: https://sound.media.mit.edu/resources/KEMAR.html
+
 ## Stereo HRTF Crosstalk
 
 Stereo loudspeaker playback is a 2x2 acoustic matrix:
@@ -25,7 +34,7 @@ BRIR[1][0] = left speaker  -> right ear  crosstalk
 BRIR[1][1] = right speaker -> right ear  desired
 ```
 
-The off-diagonal paths are crosstalk, and they are HRTF-related because the opposite speaker reaches the opposite ear with its own head-shadow, delay, and filtering. The demo HRTF builder includes all four paths.
+The off-diagonal paths are crosstalk, and they are HRTF-related because the opposite speaker reaches the opposite ear with its own head-shadow, delay, and filtering. The measured reference and synthetic demo both include all four paths.
 
 ## Is 1024 Samples Good?
 
@@ -47,13 +56,19 @@ The optional libraries are:
 - NumPy for FFT arrays and overlap-add filtering.
 - SciPy for `scipy.signal.fftconvolve` and fast FFT sizing.
 
-## Generate a Demo 1024-Tap BRIR
+## Generate a Measured Reference 1024-Tap BRIR
 
 ```sh
 python3 BRIR/brir_fft_fir.py --output BRIR/demo_brir_1024.json --taps 1024
 ```
 
-The demo generator is only a smoke-test BRIR. Replace its synthetic HRTF and RTF arrays with measured data for real rendering.
+This writes the bundled MIT KEMAR anechoic +/-30 degree stereo reference as a 1024-tap BRIR JSON.
+
+To use the older procedural placeholder coefficients:
+
+```sh
+python3 BRIR/brir_fft_fir.py --synthetic-demo --output BRIR/demo_brir_1024.json --taps 1024
+```
 
 ## Render an Input WAV
 
